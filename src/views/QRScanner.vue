@@ -113,10 +113,13 @@
 import { ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { QrcodeStream } from 'vue-qrcode-reader'
+import { useMenuStore } from '@/stores/menu'
 
 const router = useRouter()
+const menuStore = useMenuStore()
 const isScanning = ref(false)
 const error = ref('')
+const isLoading = ref(false)
 const manualCode = ref('')
 
 const toggleScanner = () => {
@@ -126,11 +129,10 @@ const toggleScanner = () => {
   }
 }
 
-const onDecode = (decodedString: string) => {
+const onDecode = async (decodedString: string) => {
   console.log('QR Code detected:', decodedString)
-  // Giả sử QR code chứa ID nhà hàng
   const restaurantId = decodedString
-  navigateToMenu(restaurantId)
+  await handleNavigateWithFetch(restaurantId)
 }
 
 const onInit = (promise: Promise<any>) => {
@@ -153,14 +155,26 @@ const onInit = (promise: Promise<any>) => {
   })
 }
 
-const enterManually = () => {
+const enterManually = async () => {
   if (manualCode.value.trim()) {
-    navigateToMenu(manualCode.value.trim())
+    await handleNavigateWithFetch(manualCode.value.trim())
   }
 }
 
 const navigateToMenu = (restaurantId: string) => {
   router.push(`/menu/${restaurantId}`)
 }
-</script>
 
+const handleNavigateWithFetch = async (restaurantId: string) => {
+  try {
+    isLoading.value = true
+    error.value = ''
+    await menuStore.fetchMenu(restaurantId)
+    navigateToMenu(restaurantId)
+  } catch (e: any) {
+    error.value = e?.message || 'Không thể tải menu, vui lòng thử lại'
+  } finally {
+    isLoading.value = false
+  }
+}
+</script>

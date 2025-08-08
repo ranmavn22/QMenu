@@ -227,9 +227,10 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted } from 'vue'
+import { ref, computed, onMounted, watch } from 'vue'
 import { useRoute } from 'vue-router'
 import OrderModal from '@/components/OrderModal.vue'
+import { useMenuStore } from '@/stores/menu'
 
 interface MenuItem {
   id: number
@@ -262,60 +263,31 @@ const discountPercent = ref(20)
 const discountReason = ref('This description showcases how 2 lines of text is gonna look like')
 const issueVATInvoice = ref(false)
 
-// Mock data
-const categories: Category[] = [
-  { id: 1, name: 'Tất cả', count: 50 },
-  { id: 2, name: 'Mì trộn', count: 27 },
-  { id: 3, name: 'Cơm', count: 15 },
-  { id: 4, name: 'Nước uống', count: 8 },
-]
+const menuStore = useMenuStore()
+const categories = computed<Category[]>(() => {
+  const raw = (menuStore.categories as any[]) || []
+  return raw.map((c, idx) => ({
+    id: c.id ?? idx + 1,
+    name: c.name ?? c.title ?? 'Danh mục',
+    count: c.count ?? c.total ?? 0,
+  }))
+})
 
-const menuItems: MenuItem[] = [
-  {
-    id: 1,
-    name: 'Mì Trộn Hàn Quốc',
-    price: 50000,
-    unit: 'Đĩa',
-    image: 'https://images.unsplash.com/photo-1569718212165-3a8278d5f624?w=200&h=200&fit=crop',
-    categoryId: 2,
-    special: true,
-  },
-  {
-    id: 2,
-    name: 'Mì Trộn Hàn Quốc',
-    price: 50000,
-    unit: 'Đĩa',
-    image: 'https://images.unsplash.com/photo-1569718212165-3a8278d5f624?w=200&h=200&fit=crop',
-    categoryId: 2,
-  },
-  {
-    id: 3,
-    name: 'Mì Trộn Hàn Quốc',
-    price: 50000,
-    unit: 'Đĩa',
-    image: 'https://images.unsplash.com/photo-1569718212165-3a8278d5f624?w=200&h=200&fit=crop',
-    categoryId: 2,
-  },
-  {
-    id: 4,
-    name: 'Mì Trộn Hàn Quốc',
-    price: 50000,
-    unit: 'Đĩa',
-    image: 'https://images.unsplash.com/photo-1569718212165-3a8278d5f624?w=200&h=200&fit=crop',
-    categoryId: 2,
-  },
-  {
-    id: 5,
-    name: 'Mì Trộn Hàn Quốc',
-    price: 50000,
-    unit: 'Đĩa',
-    image: 'https://images.unsplash.com/photo-1569718212165-3a8278d5f624?w=200&h=200&fit=crop',
-    categoryId: 2,
-  },
-]
+const menuItems = computed<MenuItem[]>(() => {
+  const raw = (menuStore.items as any[]) || []
+  return raw.map((i, idx) => ({
+    id: i.id ?? idx + 1,
+    name: i.name ?? i.title ?? 'Món',
+    price: Number(i.price ?? i.unitPrice ?? 0),
+    unit: i.unit ?? i.unitName ?? 'Phần',
+    image: i.image ?? i.thumbnail ?? '',
+    categoryId: i.categoryId ?? i.category_id ?? 1,
+    special: Boolean(i.special ?? i.isSpecial ?? false),
+  }))
+})
 
 const filteredItems = computed(() => {
-  let items = menuItems
+  let items = menuItems.value
 
   // Filter by category
   if (selectedCategory.value !== 1) {
@@ -339,7 +311,7 @@ const totalItems = computed(() => {
 const totalAmount = computed(() => {
   let total = 0
   cart.value.forEach((quantity, itemId) => {
-    const item = menuItems.find((item) => item.id === itemId)
+    const item = menuItems.value.find((item) => item.id === itemId)
     if (item) {
       total += item.price * quantity
     }
@@ -414,7 +386,7 @@ const orderItemsForModal = computed(() => {
   }> = []
 
   cart.value.forEach((quantity, itemId) => {
-    const item = menuItems.find(item => item.id === itemId)
+    const item = menuItems.value.find((item) => item.id === itemId)
     if (item) {
       items.push({
         id: item.id,
@@ -423,17 +395,22 @@ const orderItemsForModal = computed(() => {
         quantity: quantity,
         image: item.image,
         toppings: ['Topping1', 'Topping1', 'Topping1'],
-        note: 'This is a description to showcase how 2 lines of note is gonna look like'
+        note: 'This is a description to showcase how 2 lines of note is gonna look like',
       })
     }
   })
   return items
 })
 
-onMounted(() => {
-  const restaurantId = route.params.id
-  console.log('Restaurant ID:', restaurantId)
-  // Ở đây có thể fetch menu data từ API dựa trên restaurantId
+onMounted(async () => {
+  const id = String(route.params.id || '')
+  // Nếu người dùng vào trực tiếp /refresh, đảm bảo đã có dữ liệu
+  if (!menuStore.hasData || menuStore.restaurantId !== id) {
+    try {
+      await menuStore.fetchMenu(id)
+    } catch (e) {
+      // đã hiển thị lỗi ở nơi khác nếu cần
+    }
+  }
 })
 </script>
-
